@@ -1,5 +1,5 @@
-from zope.schema.interfaces import IVocabularyFactory
-from zope.component import getUtility, adapts
+from zope.schema.interfaces import IVocabularyFactory, IVocabulary
+from zope.component import queryUtility, getUtility, adapts
 from zope.interface import implements
 from plone.registry.interfaces import IRegistry
 from interfaces import IQuerystringRegistryReader
@@ -24,6 +24,7 @@ class QuerystringRegistryReader(object):
     implements(IQuerystringRegistryReader)
     adapts(IRegistry)
     prefix = "plone.app.querystring"
+    map_prefix = "plone.app.querystring.operation"
 
     def __init__(self, context):
         self.context = context
@@ -32,7 +33,7 @@ class QuerystringRegistryReader(object):
         """Make a dictionary structure for the values in the registry"""
         result = DottedDict()
         for record in self.context.records:
-            if not record.startswith(self.prefix):
+            if not record.startswith(self.prefix) and not record.startswith(self.map_prefix):
                 continue
 
             splitted = record.split('.')
@@ -51,15 +52,19 @@ class QuerystringRegistryReader(object):
 
     def getVocabularyValues(self, values):
         """Get all vocabulary values if a vocabulary is defined"""
-
         for field in values.get(self.prefix + '.field').values():
             field['values'] = {}
             vocabulary = field.get('vocabulary', [])
             if vocabulary:
-                utility = getUtility(IVocabularyFactory, vocabulary)
-                for item in sorted(utility(self.context),
-                                   key=attrgetter('title')):
+                utility = queryUtility(IVocabularyFactory, vocabulary)
+                if utility:
+                    vocab = utility(self.context)
+                else: # not a factory, just a simple vocabulary
+                    vocab = getUtility(IVocabulary, vocabulary)
+                
+                for item in sorted(vocab, key=attrgetter('title')):
                     field['values'][item.value] = {'title': item.title}
+                    
         return values
 
     def mapOperations(self, values):

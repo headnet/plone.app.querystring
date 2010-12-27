@@ -1,4 +1,7 @@
-from collections import namedtuple
+try:
+    from collections import namedtuple
+except:
+    from extras import namedtuple
 
 from Acquisition import aq_parent
 from DateTime import DateTime
@@ -15,7 +18,7 @@ logger = logging.getLogger('plone.app.querystring')
 Row = namedtuple('Row', ['index', 'operator', 'values'])
 
 
-def parseFormquery(context, formquery, sort_on=None, sort_order=None):
+def parseFormquery(context, formquery, sort_on=None, sort_order=None, catalog="portal_catalog"):
     if not formquery:
         return {}
     reg = getUtility(IRegistry)
@@ -40,7 +43,7 @@ def parseFormquery(context, formquery, sort_on=None, sort_order=None):
         module, function = row.operator.split(":")
         fromlist = module.split(".")[:-1]
         try:
-            module = __import__(module, fromlist=fromlist)
+            module = __import__(module, globals(), locals(), fromlist)
             parser = getattr(module, function)
         except (ImportError, AttributeError):
             raise  # XXX: Be more friendly
@@ -54,7 +57,7 @@ def parseFormquery(context, formquery, sort_on=None, sort_order=None):
         query = _equal(context, row)
 
     # Check for valid indexes
-    catalog = getToolByName(context, 'portal_catalog')
+    catalog = getToolByName(context, catalog)
     valid_indexes = [index for index in query if index in catalog.indexes()]
 
     # We'll ignore any invalid index, but will return an empty set if none of

@@ -6,7 +6,10 @@ from zope.component import getMultiAdapter, getUtility
 from plone.app.querystring.interfaces import IQuerystringRegistryReader
 from plone.app.contentlisting.interfaces import IContentListing
 from zope.i18n import translate
-import json
+try:
+    import json
+except:
+    import simplejson as json
 
 
 class ContentListingView(BrowserView):
@@ -23,17 +26,21 @@ class QueryBuilder(BrowserView):
     """ This view is used by the javascripts,
         fetching configuration or results"""
 
-    def __init__(self, context, request):
+    catalog = 'portal_catalog'
+        
+    def __init__(self, context, request, catalog=None):
         self._results = None
         self.context = context
         self.request = request
+        if catalog:
+            self.catalog = catalog
 
     def __call__(self, query, sort_on=None, sort_order=None):
         if self._results is None:
             self._results = self._makequery(query=query, sort_on=sort_on, sort_order=sort_order)
         return self._results
 
-    def html_results(self, query):
+    def html_results(self, query=''):
         options = dict(original_context=self.context)
         results = self(query, self.request.get('sort_on', None), self.request.get('sort_order', None))
 
@@ -42,7 +49,7 @@ class QueryBuilder(BrowserView):
             **options)
 
     def _makequery(self, query=None, sort_on=None, sort_order=None):
-        parsedquery = queryparser.parseFormquery(self.context, query, sort_on, sort_order)
+        parsedquery = queryparser.parseFormquery(self.context, query, sort_on, sort_order, catalog=self.catalog)
         if not parsedquery:
             return IContentListing([])
         return getMultiAdapter((self.context, self.request),
