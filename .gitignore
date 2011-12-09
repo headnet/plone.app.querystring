@@ -1,0 +1,9 @@
+# Development #
+###############
+*.pyc
+*.egg-info
+
+# Coverage #
+############
+.coverage
+htmlcov
