@@ -1,26 +1,37 @@
 from zope.component import getMultiAdapter
-from zope.publisher.browser import TestRequest
+from plone.app.testing import TEST_USER_NAME, TEST_USER_ID
+from plone.app.testing import login, setRoles
 
-from .base import QuerystringTestCase
+from .base import unittest
+from .base import PLONE_APP_QUERYSTRING_FUNCTIONAL_TESTING
 
 
-class TestQuerybuilder(QuerystringTestCase):
+class TestQuerybuilderView(unittest.TestCase):
+    layer = PLONE_APP_QUERYSTRING_FUNCTIONAL_TESTING
 
-    def afterSetUp(self):
-        self.loginAsPortalOwner()
+    def setUp(self):
+        self.portal = self.layer['portal']
+        self.request = self.layer['request']
+
+        setRoles(self.portal, TEST_USER_ID, ['Manager'])
+        login(self.portal, TEST_USER_NAME)
+
+        self.portal.invokeFactory("Folder", 'folder', title='Folder')
         self.portal.invokeFactory("Document",
                                   "collectionstestpage",
                                   title="Collectionstestpage")
         testpage = self.portal['collectionstestpage']
         self.portal.portal_workflow.doActionFor(testpage, 'publish')
-        self.request = TestRequest()
-        self.querybuilder = getMultiAdapter((self.portal, self.request),
-                                             name='querybuilderresults')
         self.query = [{
             'i': 'Title',
             'o': 'plone.app.querystring.operation.string.is',
             'v': 'Collectionstestpage',
         }]
+
+    @property
+    def querybuilder(self):
+        return getMultiAdapter((self.portal, self.request),
+                               name='querybuilderresults')
 
     def testQueryBuilderQuery(self):
         results = self.querybuilder(query=self.query)
@@ -31,7 +42,7 @@ class TestQuerybuilder(QuerystringTestCase):
         self.assertTrue('Collectionstestpage' in results)
 
     def testGettingConfiguration(self):
-        res = self.folder.restrictedTraverse('@@querybuildernumberofresults')
+        res = self.portal.folder.restrictedTraverse('@@querybuildernumberofresults')
         res(self.query)
 
     def testQueryBuilderNumberOfResults(self):
@@ -40,7 +51,7 @@ class TestQuerybuilder(QuerystringTestCase):
         self.assertEqual(numeric, 1)
 
     def testQueryBuilderNumberOfResultsView(self):
-        res = self.folder.restrictedTraverse('@@querybuildernumberofresults')
+        res = self.portal.folder.restrictedTraverse('@@querybuildernumberofresults')
         length_of_results = res.browserDefault(None)[0](self.query)
         # apparently brower travelsal is different from the traversal we get
         # from restrictedTraverse. This did hurt a bit.
@@ -48,7 +59,14 @@ class TestQuerybuilder(QuerystringTestCase):
         self.assertEqual(numeric, 1)
 
 
-class TestConfigurationFetcher(QuerystringTestCase):
+class TestConfigurationFetcher(unittest.TestCase):
+    layer = PLONE_APP_QUERYSTRING_FUNCTIONAL_TESTING
+
+    def setUp(self):
+        self.portal = self.layer['portal']
+        setRoles(self.portal, TEST_USER_ID, ['Manager'])
+        login(self.portal, TEST_USER_NAME)
+        self.portal.invokeFactory("Folder", 'folder', title='Folder')
 
     def testGettingJSONConfiguration(self):
-        self.folder.restrictedTraverse('@@querybuilderjsonconfig')()
+        self.portal.folder.restrictedTraverse('@@querybuilderjsonconfig')()

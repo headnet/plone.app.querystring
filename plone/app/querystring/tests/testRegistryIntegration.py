@@ -1,9 +1,12 @@
-from .base import QuerystringTestCase, TestProfileLayer, ptc
+from .base import unittest
+from .base import PLONE_APP_QUERYSTRING_INTEGRATION_TESTING
 
 
-class TestOperationDefinitions(ptc.PloneTestCase):
+class TestOperationDefinitions(unittest.TestCase):
+    layer = PLONE_APP_QUERYSTRING_INTEGRATION_TESTING
 
-    layer = TestProfileLayer
+    def setUp(self):
+        self.portal = self.layer['portal']
 
     def test_string_equality(self):
         registry = self.portal.portal_registry
@@ -30,9 +33,11 @@ class TestOperationDefinitions(ptc.PloneTestCase):
                          'plone.app.querystring.queryparser:_lessThan')
 
 
-class TestFieldDefinitions(QuerystringTestCase):
+class TestFieldDefinitions(unittest.TestCase):
+    layer = PLONE_APP_QUERYSTRING_INTEGRATION_TESTING
 
-    layer = TestProfileLayer
+    def setUp(self):
+        self.portal = self.layer['portal']
 
     def test_getId(self):
         registry = self.portal.portal_registry

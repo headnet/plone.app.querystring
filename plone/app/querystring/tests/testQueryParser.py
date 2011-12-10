@@ -1,15 +1,10 @@
-import unittest
-
+from zope.interface import directlyProvides
 from DateTime import DateTime
-from plone.app.layout.navigation.interfaces import INavigationRoot
-from plone.app.querystring import queryparser
 from plone.registry import field
 from plone.registry import Record
-from zope.interface import directlyProvides
-
-from .base import UnittestWithRegistryLayer
-from plone.app.querystring.queryparser import Row
-
+from plone.app.layout.navigation.interfaces import INavigationRoot
+from .base import unittest
+from .base import REGISTRY_ONLY_LAYER
 
 class MockObject(object):
 
@@ -75,11 +70,9 @@ class MockPortal_membership(object):
 
 
 class TestQueryParserBase(unittest.TestCase):
-
-    layer = UnittestWithRegistryLayer
+    layer = REGISTRY_ONLY_LAYER
 
     def setUp(self):
-        super(TestQueryParserBase, self).setUp()
         self.setFunctionForOperation(
             'plone.app.querystring.operation.string.is.operation',
             'plone.app.querystring.queryparser._equal')
@@ -96,13 +89,18 @@ class TestQueryParserBase(unittest.TestCase):
 
 class TestQueryParser(TestQueryParserBase):
 
+    @property
+    def formparser(self):
+        from plone.app.querystring.queryparser import parseFormquery
+        return parseFormquery
+
     def test_exact_title(self):
         data = {
             'i': 'Title',
             'o': 'plone.app.querystring.operation.string.is',
             'v': 'Welcome to Plone',
         }
-        parsed = queryparser.parseFormquery(MockSite(), [data, ])
+        parsed = self.formparser(MockSite(), [data, ])
         self.assertEqual(parsed, {'Title': {'query': 'Welcome to Plone'}})
 
     def test_path_explicit(self):
@@ -111,7 +109,7 @@ class TestQueryParser(TestQueryParserBase):
             'o': 'plone.app.querystring.operation.string.path',
             'v': '/site/foo',
         }
-        parsed = queryparser.parseFormquery(MockSite(), [data, ])
+        parsed = self.formparser(MockSite(), [data, ])
         self.assertEqual(parsed, {'path': {'query': '/site/foo'}})
 
     def test_path_computed(self):
@@ -121,43 +119,51 @@ class TestQueryParser(TestQueryParserBase):
             'v': '00000000000000001',
         }
 
-        parsed = queryparser.parseFormquery(MockSite(), [data, ])
+        parsed = self.formparser(MockSite(), [data, ])
         self.assertEqual(parsed, {'path': {'query': '/site/foo'}})
 
 
 class TestQueryGenerators(TestQueryParserBase):
 
+    def makeRow(self, **kwargs):
+        from plone.app.querystring.queryparser import Row
+        return Row(**kwargs)
+
     def test__between(self):
-        data = Row(index='modified',
-                  operator='_between',
-                  values=['2009/08/12', '2009/08/14'])
-        parsed = queryparser._between(MockSite(), data)
+        data = self.makeRow(index='modified',
+                            operator='_between',
+                            values=['2009/08/12', '2009/08/14'])
+        from plone.app.querystring.queryparser import _between
+        parsed = _between(MockSite(), data)
         expected = {'modified': {'query': ['2009/08/12', '2009/08/14'],
                     'range': 'minmax'}}
         self.assertEqual(parsed, expected)
 
     def test__between_reversed_dates(self):
-        data = Row(index='modified',
-                  operator='_between',
-                  values=['2009/08/14', '2009/08/12'])
-        parsed = queryparser._between(MockSite(), data)
+        data = self.makeRow(index='modified',
+                            operator='_between',
+                            values=['2009/08/14', '2009/08/12'])
+        from plone.app.querystring.queryparser import _between
+        parsed = _between(MockSite(), data)
         expected = {'modified': {'query': ['2009/08/12', '2009/08/14'],
                     'range': 'minmax'}}
         self.assertEqual(parsed, expected)
 
     def test__largerThan(self):
-        data = Row(index='modified',
-                  operator='_largerThan',
-                  values='2010/03/18')
-        parsed = queryparser._largerThan(MockSite(), data)
+        data = self.makeRow(index='modified',
+                            operator='_largerThan',
+                            values='2010/03/18')
+        from plone.app.querystring.queryparser import _largerThan
+        parsed = _largerThan(MockSite(), data)
         expected = {'modified': {'query': '2010/03/18', 'range': 'min'}}
         self.assertEqual(parsed, expected)
 
     def test__lessThan(self):
-        data = Row(index='modified',
-                  operator='_lessThan',
-                  values='2010/03/18')
-        parsed = queryparser._lessThan(MockSite(), data)
+        data = self.makeRow(index='modified',
+                            operator='_lessThan',
+                            values='2010/03/18')
+        from plone.app.querystring.queryparser import _lessThan
+        parsed = _lessThan(MockSite(), data)
         expected = {'modified': {'query': '2010/03/18', 'range': 'max'}}
         self.assertEqual(parsed, expected)
 
@@ -166,10 +172,11 @@ class TestQueryGenerators(TestQueryParserBase):
         u = MockUser()
         pm = MockPortal_membership(user=u)
         context = MockSite(portal_membership=pm)
-        data = Row(index='Creator',
-                  operator='_currentUser',
-                  values=None)
-        parsed = queryparser._currentUser(context, data)
+        data = self.makeRow(index='Creator',
+                            operator='_currentUser',
+                            values=None)
+        from plone.app.querystring.queryparser import _currentUser
+        parsed = _currentUser(context, data)
         expected = {'Creator': {'query': 'Anonymous User'}}
         self.assertEqual(parsed, expected)
 
@@ -177,22 +184,24 @@ class TestQueryGenerators(TestQueryParserBase):
         u = MockUser(username='admin')
         pm = MockPortal_membership(user=u)
         context = MockSite(portal_membership=pm)
-        data = Row(index='Creator',
-                  operator='_currentUser',
-                  values=None)
-        parsed = queryparser._currentUser(context, data)
+        data = self.makeRow(index='Creator',
+                            operator='_currentUser',
+                            values=None)
+        from plone.app.querystring.queryparser import _currentUser
+        parsed = _currentUser(context, data)
         expected = {'Creator': {'query': 'admin'}}
         self.assertEqual(parsed, expected)
 
     def test__lessThanRelativeDate(self):
+        from plone.app.querystring.queryparser import _lessThanRelativeDate
         def test(days):
             now = DateTime()
             mydate = now + days
             mydate = mydate.earliestTime()
-            data = Row(index='modified',
-                      operator='_lessThanRelativeDate',
-                      values=days)
-            parsed = queryparser._lessThanRelativeDate(MockSite(), data)
+            data = self.makeRow(index='modified',
+                                operator='_lessThanRelativeDate',
+                                values=days)
+            parsed = _lessThanRelativeDate(MockSite(), data)
             expected = {'modified': {'query': mydate, 'range': 'max'}}
             self.assertEqual(parsed, expected)
 
@@ -200,14 +209,15 @@ class TestQueryGenerators(TestQueryParserBase):
         test(-2)
 
     def test__moreThanRelativeDate(self):
+        from plone.app.querystring.queryparser import _moreThanRelativeDate
         def test(days):
             now = DateTime()
             mydate = now + days
             mydate = mydate.latestTime()
-            data = Row(index='modified',
-                      operator='_moreThanRelativeDate',
-                      values=days)
-            parsed = queryparser._moreThanRelativeDate(MockSite(), data)
+            data = self.makeRow(index='modified',
+                                operator='_moreThanRelativeDate',
+                                values=days)
+            parsed = _moreThanRelativeDate(MockSite(), data)
             expected = {'modified': {'query': mydate, 'range': 'min'}}
             self.assertEqual(parsed, expected)
 
@@ -216,18 +226,19 @@ class TestQueryGenerators(TestQueryParserBase):
 
     def test__path(self):
         # normal path
-        data = Row(index='path',
+        data = self.makeRow(index='path',
                   operator='_path',
                   values='/Plone/news/')
-        parsed = queryparser._path(MockSite(), data)
+        from plone.app.querystring.queryparser import _path
+        parsed = _path(MockSite(), data)
         expected = {'path': {'query': '/Plone/news/'}}
         self.assertEqual(parsed, expected)
 
         # by uid
-        data = Row(index='path',
-                  operator='_path',
-                  values='00000000000000001')
-        parsed = queryparser._path(MockSite(), data)
+        data = self.makeRow(index='path',
+                            operator='_path',
+                            values='00000000000000001')
+        parsed = _path(MockSite(), data)
         expected = {'path': {'query': '/site/foo'}}
         self.assertEqual(parsed, expected)
 
@@ -245,13 +256,15 @@ class TestQueryGenerators(TestQueryParserBase):
         zoperoot = MockObject(uid='00000000000000004', path="/")
         context.__parent__.__parent__.__parent__ = zoperoot
 
-        data = Row(index='path',
-                  operator='_relativePath',
-                  values='../../')
-        parsed = queryparser._relativePath(context, data)
+        data = self.makeRow(index='path',
+                            operator='_relativePath',
+                            values='../../')
+        from plone.app.querystring.queryparser import _relativePath
+        parsed = _relativePath(context, data)
         expected = {'path': {'query': '/foo'}}
         self.assertEqual(parsed, expected)
 
     def test_getPathByUID(self):
-        actual = queryparser.getPathByUID(MockSite(), '00000000000000001')
+        from plone.app.querystring.queryparser import getPathByUID
+        actual = getPathByUID(MockSite(), '00000000000000001')
         self.assertEqual(actual, ['', 'site', 'foo'])

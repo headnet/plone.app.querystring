@@ -1,16 +1,13 @@
-import unittest
-
 from plone.registry.interfaces import IRegistry
 from plone.registry import Registry
 from zope.component import getGlobalSiteManager
 from zope.interface import implements
 from zope.schema.interfaces import IVocabularyFactory
 from zope.schema.vocabulary import SimpleVocabulary
-
-from plone.app.querystring.interfaces import IQuerystringRegistryReader
-from plone.app.querystring.registryreader import DottedDict
-from plone.app.querystring.tests import registry_testdata as td
-from plone.app.querystring.tests.base import InstalledLayer
+from plone.app.registry.exportimport.handler import RegistryImporter
+from plone.app.querystring.tests import registry_testdata as testdata
+from .base import unittest
+from .base import PLONE_APP_QUERYSTRING_INTEGRATION_TESTING
 
 
 class TestVocabulary(object):
@@ -22,7 +19,7 @@ class TestVocabulary(object):
 
 
 class TestRegistryReader(unittest.TestCase):
-    layer = InstalledLayer
+    layer = PLONE_APP_QUERYSTRING_INTEGRATION_TESTING
 
     def setUp(self):
         gsm = getGlobalSiteManager()
@@ -37,7 +34,6 @@ class TestRegistryReader(unittest.TestCase):
 
     def createRegistry(self, xml):
         """Create a registry from a minimal set of fields and operators"""
-        from plone.app.registry.exportimport.handler import RegistryImporter
         gsm = getGlobalSiteManager()
         self.registry = Registry()
         gsm.registerUtility(self.registry, IRegistry)
@@ -46,12 +42,17 @@ class TestRegistryReader(unittest.TestCase):
         importer.importDocument(xml)
         return self.registry
 
+    def getReader(self, *args):
+        from plone.app.querystring.interfaces import IQuerystringRegistryReader
+        return IQuerystringRegistryReader(*args)
+
     def test_dotted_dict(self):
         """test the dotted dict type which is used by the registry reader to
            access dicts in dicts by dotted names. (eg field.created.operations)
            it should raise a keyerror when an invalid key is used
            TODO : DottedDict should be in a separate package
         """
+        from plone.app.querystring.registryreader import DottedDict
         dd = DottedDict({'my': {'dotted': {'name': 'value'}}})
         self.assertEqual(dd.get('my.dotted.name'), 'value')
         self.assertRaises(KeyError, dd.get, 'my.dotted.wrongname')
@@ -60,17 +61,17 @@ class TestRegistryReader(unittest.TestCase):
 
     def test_parse_registry(self):
         """tests if the parsed registry data is correct"""
-        registry = self.createRegistry(td.minimal_correct_xml)
-        reader = IQuerystringRegistryReader(registry)
+        registry = self.createRegistry(testdata.minimal_correct_xml)
+        reader = self.getReader(registry)
         result = reader.parseRegistry()
-        self.assertEqual(result, td.parsed_correct)
+        self.assertEqual(result, testdata.parsed_correct)
 
     def test_get_vocabularies(self):
         """tests if getVocabularyValues is returning the correct vocabulary
            values in the correct format
         """
-        registry = self.createRegistry(td.test_vocabulary_xml)
-        reader = IQuerystringRegistryReader(registry)
+        registry = self.createRegistry(testdata.test_vocabulary_xml)
+        reader = self.getReader(registry)
         result = reader.parseRegistry()
         result = reader.getVocabularyValues(result)
         vocabulary_result = result.get(
@@ -79,8 +80,8 @@ class TestRegistryReader(unittest.TestCase):
 
     def test_map_operations_clean(self):
         """tests if mapOperations is getting all operators correctly"""
-        registry = self.createRegistry(td.minimal_correct_xml)
-        reader = IQuerystringRegistryReader(registry)
+        registry = self.createRegistry(testdata.minimal_correct_xml)
+        reader = self.getReader(registry)
         result = reader.parseRegistry()
         result = reader.mapOperations(result)
         operations = result.get(
@@ -92,8 +93,8 @@ class TestRegistryReader(unittest.TestCase):
 
     def test_map_operations_missing(self):
         """tests if nonexisting referenced operations are properly skipped"""
-        registry = self.createRegistry(td.test_missing_operator_xml)
-        reader = IQuerystringRegistryReader(registry)
+        registry = self.createRegistry(testdata.test_missing_operator_xml)
+        reader = self.getReader(registry)
         result = reader.parseRegistry()
         result = reader.mapOperations(result)
         operators = result.get(
@@ -107,8 +108,8 @@ class TestRegistryReader(unittest.TestCase):
         """tests if sortable indexes from the registry will be available in
            the parsed registry
         """
-        registry = self.createRegistry(td.minimal_correct_xml)
-        reader = IQuerystringRegistryReader(registry)
+        registry = self.createRegistry(testdata.minimal_correct_xml)
+        reader = self.getReader(registry)
         result = reader.parseRegistry()
         result = reader.mapOperations(result)
         result = reader.mapSortableIndexes(result)
@@ -125,7 +126,7 @@ class TestRegistryReader(unittest.TestCase):
         """tests the __call__ method of the IQuerystringRegistryReader
            adapter
         """
-        registry = self.createRegistry(td.minimal_correct_xml)
-        reader = IQuerystringRegistryReader(registry)
+        registry = self.createRegistry(testdata.minimal_correct_xml)
+        reader = self.getReader(registry)
         result = reader()
         self.assertEqual(result.keys(), ['sortable_indexes', 'indexes'])
